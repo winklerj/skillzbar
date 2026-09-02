@@ -36,17 +36,22 @@ Because I tried the alias first. `cat ~/skillz/*/SKILL.md | fzf` works until you
 - **Pin and hide.** Some skills I want at the top regardless of frequency. Some I want to keep on disk but never see.
 - **A scan that is invisible.** Forty-nine skills across four roots scans in single-digit milliseconds using `getattrlistbulk`, so "Rescan" is something you press without thinking about it.
 
-## Skill mode: the agent uses it too
+## Skill mode
 
-Halfway through building this I realized the app is a small skill server, and the agent is a better client than I am. So the same binary is a CLI. I call it **skill mode**:
+The same binary is also a CLI. I call it **skill mode**, and the important thing about it is who it is *not* for.
+
+The agent never learns that SkillzBar exists. Nothing about it goes into `CLAUDE.md` or `AGENTS.md`, and I do not explain it in a session either. Either one would be the original problem again, just smaller: a standing line in every context window advertising a tool the agent rarely needs. The agent only ever sees what lands in the prompt, a bare path or a path plus contents, and it already knows what to do with both.
+
+Skill mode is the terminal-side way to produce that paste:
 
 ```bash
-skillzbar cat diary          # path line, blank line, full SKILL.md on stdout
-skillzbar find rank          # fuzzy candidates as JSON
+skillzbar cat diary | pbcopy       # same as ⌥-click, without leaving the shell
+skillzbar path diary               # same as click
+skillzbar find rank                # fuzzy candidates as JSON, when I forget the name
 skillzbar list --json
 ```
 
-Notice what is not happening here: nothing about the diary skill, or about `skillzbar`, goes into `CLAUDE.md` or `AGENTS.md`. Putting a pointer there would be the original problem again, just smaller; a standing line in every session's context. Instead I say it once, in the session where it matters: "run `skillzbar cat diary` and follow it." The agent fetches the skill on demand, from the canonical location, and the session ends with that context gone. This is skill mode: **code mode**, but for skills. Cold for me, cold for the agent, and warm the moment either of us asks.
+It composes the way a Unix tool does: into a prompt file, into a heredoc for a headless run, into a script that assembles a session from three cold skills. This is skill mode: **code mode**, but for skills. Cold for me, cold for the agent, and warm the moment I ask.
 
 ## The part I insist on: an agent can debug it without me
 
