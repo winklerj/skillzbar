@@ -1,0 +1,19 @@
+# SwiftPM / Xcode
+.build/
+build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.dSYM/
+
+# macOS
+.DS_Store
+
+# local env / secrets (none used, kept as a guard)
+.env
+.env.*
+*.pem
+*.p12
+*.mobileprovision
