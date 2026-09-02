@@ -36,9 +36,9 @@ Because I tried the alias first. `cat ~/skillz/*/SKILL.md | fzf` works until you
 - **Pin and hide.** Some skills I want at the top regardless of frequency. Some I want to keep on disk but never see.
 - **A scan that is invisible.** Forty-nine skills across four roots scans in single-digit milliseconds using `getattrlistbulk`, so "Rescan" is something you press without thinking about it.
 
-## The part I did not expect to care about: the agent uses it too
+## Skill mode: the agent uses it too
 
-Halfway through building this I realized the app is a small skill server, and the agent is a better client than I am. So the same binary is a CLI:
+Halfway through building this I realized the app is a small skill server, and the agent is a better client than I am. So the same binary is a CLI. I call it **skill mode**:
 
 ```bash
 skillzbar cat diary          # path line, blank line, full SKILL.md on stdout
@@ -46,7 +46,7 @@ skillzbar find rank          # fuzzy candidates as JSON
 skillzbar list --json
 ```
 
-Now my `CLAUDE.md` can say "if you need the diary skill, run `skillzbar cat diary`" and the agent fetches it on demand, from the canonical location, with zero standing context cost. It is code mode for skills. The cold skills are not just cold for me; they are cold for the agent, and warm the moment either of us asks.
+Now my `CLAUDE.md` can say "if you need the diary skill, run `skillzbar cat diary`" and the agent fetches it on demand, from the canonical location, with zero standing context cost. This is skill mode: code mode, but for skills. The cold skills are not just cold for me; they are cold for the agent, and warm the moment either of us asks.
 
 ## The part I insist on: an agent can debug it without me
 
@@ -75,7 +75,7 @@ You, if you have more skills than you use daily, you work in more than one agent
 
 Default roots: `~/skillz` (your cold folder), `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`. Move skills out of the hot folders into `~/skillz` and they stop loading automatically but stay one click away.
 
-## Agent CLI reference
+## Skill mode CLI reference
 
 ```bash
 skillzbar cat diary          # "<path>\n\n<contents>" on stdout
