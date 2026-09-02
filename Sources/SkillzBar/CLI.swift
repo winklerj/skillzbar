@@ -21,6 +21,7 @@ enum CLI {
     Running app (via ctl socket):
       ctl ping|status|list|menu|panel|rescan|errors|show|hide|open-menu|close-menu|ui
       ctl key "dia @down @return"     synthesize keys into the shown panel (@down @up @return @opt-return @esc)
+      ctl snapshot [path.png]           render the shown panel to PNG in-process (no screen-recording permission)
       ctl copy <name|path> [--contents]
     """
 

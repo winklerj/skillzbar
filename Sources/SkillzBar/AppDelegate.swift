@@ -154,7 +154,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let flippedY = root.isFlipped ? r.minY : root.bounds.height - r.maxY
             let f = [r.minX, flippedY, r.width, r.height].map { Double($0) }
             if v is NSTextField, out["searchField"] == nil, v.frame.height > 16 { out["searchField"] = f }
-            if v is NSScrollView { out["list"] = f }
+            if let sv = v as? NSScrollView {
+                out["list"] = f
+                out["listInsets"] = [sv.contentInsets.top, sv.contentInsets.left, sv.contentInsets.bottom, sv.contentInsets.right].map { Double($0) }
+                out["listVisibleOrigin"] = [Double(sv.documentVisibleRect.origin.x), Double(sv.documentVisibleRect.origin.y), sv.automaticallyAdjustsContentInsets ? 1 : 0]
+                if let doc = sv.documentView { out["listDocument"] = [Double(doc.frame.origin.y), Double(doc.frame.height)] }
+            }
             v.subviews.forEach(walk)
         }
         walk(root)
@@ -199,6 +204,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          panelQuery: panel?.model.query, panelSelected: panel?.model.selected, panelRows: panel?.model.rows.map(\.entry.name), panelLayout: panel.map { Self.layout(of: $0.panel) },
                          settingsVisible: settings?.isVisible ?? false, hotkey: store.config.hotkey.display,
                          loginItemStatus: Bundle.main.bundleIdentifier == nil ? "bare-executable" : "\(SMAppService.mainApp.status.rawValue) (0=notRegistered 1=enabled 2=requiresApproval 3=notFound)"))
+        case "snapshot":
+            // In-process render of the panel's view hierarchy to PNG. No Screen Recording permission needed.
+            guard let p = panel, p.panel.isVisible, let view = p.panel.contentView else { return JSON.string(CtlFailure(error: "panel not shown; run `ctl show` first")) }
+            let path = (req.arg?.isEmpty == false) ? req.arg! : NSTemporaryDirectory() + "skillzbar-panel.png"
+            let scale = p.panel.backingScaleFactor
+            let w = Int(view.bounds.width * scale), h = Int(view.bounds.height * scale)
+            guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return JSON.string(CtlFailure(error: "CGContext failed")) }
+            ctx.scaleBy(x: scale, y: scale)
+            if view.isFlipped { ctx.translateBy(x: 0, y: view.bounds.height); ctx.scaleBy(x: 1, y: -1) }
+            view.layer?.render(in: ctx)
+            guard let cg = ctx.makeImage() else { return JSON.string(CtlFailure(error: "makeImage failed")) }
+            let rep = NSBitmapImageRep(cgImage: cg)
+            guard let png = rep.representation(using: .png, properties: [:]) else { return JSON.string(CtlFailure(error: "png encode failed")) }
+            do { try png.write(to: URL(fileURLWithPath: path)) } catch { return JSON.string(CtlFailure(error: "write \(path): \(error)")) }
+            return ok(path)
         case "key":
             guard let p = panel, p.panel.isVisible else { return JSON.string(CtlFailure(error: "panel not shown; run `ctl show` first")) }
             for tok in (req.arg ?? "").split(separator: " ") { p.synthesize(String(tok)) }
