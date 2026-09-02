@@ -40,6 +40,9 @@ public final class SkillStore {
     @discardableResult
     public func rescan() -> ScanReport {
         let report: ScanReport = q.sync {
+            // Another process (CLI, agent, editor) may have changed config.json since we loaded; a stale
+            // in-memory copy would both miss its roots and clobber it on the next Settings save.
+            do { _config = try Config.load() } catch { Log.shared.error("config.load", error, paths: [AppPaths.configFile]) }
             let r = Scanner(fs: fs).scan(config: _config, cache: &cache)
             _entries = r.entries; _lastScan = r
             do { try cache.save() } catch { Log.shared.error("cache.save", error, paths: [AppPaths.cacheFile]) }

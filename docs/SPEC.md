@@ -22,12 +22,13 @@ Top 9 rows get key equivalents: `⌘1`–`⌘9` inside the open menu, bare `1`�
 
 ## Discovery
 
-- Roots (default): `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/skillz` (cold-skill folder). User adds roots or single `SKILL.md` files manually.
+- Roots (default): `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/skillz` (cold-skill folder) as skills roots; `~/.claude/commands`, `~/.codex/prompts` as commands roots. User adds roots or single files manually.
+- Each root carries a `ContentKind`. Skills root: only `SKILL.md` matches, name = parent directory. Commands root: every `*.md` at any depth matches, name = relative directory components + file stem joined by `:` (`cl/implement_plan.md` → `cl:implement_plan`). Kind is fixed per root, so widening the file match can never turn a skill's `README.md` / `references/*.md` into entries. Manual file: `SKILL.md` → skill, any other `.md` → command named by stem. Config accepts bare strings for roots (= skills) for backward compatibility.
 - Excludes (default, editable): `~/Library/**`, `**/.tmp/**`, `**/node_modules/**`, `~/.claude/plugins/**`, `~/.codex/plugins/**`, `~/.codex/.tmp/**`, `**/.git/**`.
 - Rescan is manual only (menu item, CLI, or after settings change). No FS watching.
 - Dedup, cheapest-first: (1) same `st_dev`+`st_ino` → hard link/same file, no read; (2) different `st_size` → cannot be duplicates, no read; (3) equal size → hash (SHA-256 via CryptoKit, hardware-accelerated on Apple Silicon, no dependency). Hashes cached in `~/Library/Application Support/SkillzBar/cache.json` keyed by `(path, size, mtime_ns, inode)`; only changed files are rehashed on rescan. Duplicates collapse to one entry; preferred path = manual > earliest-listed root. Symlinks resolved first.
 - Traversal: `getattrlistbulk(2)` per directory (type + size + mtime for a whole directory in one syscall; no per-entry `stat`), excluded directories pruned at descent time (never entered), roots walked concurrently with a `TaskGroup`. Fallback `fts(3)` if `getattrlistbulk` is unavailable on a volume. Rejected: `FileManager.enumerator` (per-item `NSURL` allocation, slow), Spotlight/`NSMetadataQuery` (does not reliably index dot-directories like `~/.claude`), FSEvents (user chose manual rescan).
-- No frontmatter parsing. Display name = parent directory name. Description omitted.
+- No frontmatter parsing. Display name = parent directory name (skills) or `sub:dir:stem` (commands). Description omitted.
 
 Baseline on this machine (2026-09-02): 2,113 `SKILL.md` under `~`; ~10 hand-authored in `~/.claude/skills`. Defaults above must yield tens, not thousands.
 
@@ -76,8 +77,10 @@ The same binary runs as app or CLI. Shared core library; no UI in core.
 ```
 SkillID        = canonical resolved path of the preferred SKILL.md (stable across edits)
 ContentHash    = SHA-256 of contents (dedup key at scan time only; never identity)
+ContentKind    = skill | command
+ScanRoot       = { path, kind: ContentKind }
 SkillSource    = discovered(root: URL) | manual
-SkillEntry     = { id, name, byteSize, contentHash, source, duplicatePaths: [URL] }
+SkillEntry     = { id, name, kind, byteSize, contentHash, source, duplicatePaths: [URL] }
 Visibility     = pinned | normal | hidden        // per SkillID, default normal
 UsageRecord    = { id, copiedAt, kind: path | contents }
 ```

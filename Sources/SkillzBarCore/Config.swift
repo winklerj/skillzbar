@@ -1,7 +1,7 @@
 import Foundation
 
 public struct Config: Codable, Equatable {
-    public var roots: [String]
+    public var roots: [ScanRoot]
     public var manualSkills: [String]
     public var excludeDirNames: [String]
     public var excludePathPrefixes: [String]
@@ -12,7 +12,8 @@ public struct Config: Codable, Equatable {
     public var launchAtLogin: Bool
 
     public static let defaults = Config(
-        roots: ["~/skillz", "~/.claude/skills", "~/.codex/skills", "~/.agents/skills"],
+        roots: [ScanRoot("~/skillz"), ScanRoot("~/.claude/skills"), ScanRoot("~/.codex/skills"), ScanRoot("~/.agents/skills"),
+                ScanRoot("~/.claude/commands", kind: .command), ScanRoot("~/.codex/prompts", kind: .command)],
         manualSkills: [],
         excludeDirNames: ["node_modules", ".git", ".tmp", ".build", ".system", "DerivedData"],
         excludePathPrefixes: ["~/Library", "~/.claude/plugins", "~/.codex/plugins", "~/.codex/.tmp"],
@@ -23,7 +24,7 @@ public struct Config: Codable, Equatable {
         launchAtLogin: false
     )
 
-    public init(roots: [String], manualSkills: [String], excludeDirNames: [String], excludePathPrefixes: [String],
+    public init(roots: [ScanRoot], manualSkills: [String], excludeDirNames: [String], excludePathPrefixes: [String],
                 visibility: [String: Visibility], groupByRoot: Bool, maxQuickRows: Int, hotkey: HotKeySpec, launchAtLogin: Bool) {
         self.roots = roots; self.manualSkills = manualSkills; self.excludeDirNames = excludeDirNames
         self.excludePathPrefixes = excludePathPrefixes; self.visibility = visibility; self.groupByRoot = groupByRoot
@@ -34,7 +35,7 @@ public struct Config: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Config.defaults
-        roots = try c.decodeIfPresent([String].self, forKey: .roots) ?? d.roots
+        roots = try c.decodeIfPresent([ScanRoot].self, forKey: .roots) ?? d.roots
         manualSkills = try c.decodeIfPresent([String].self, forKey: .manualSkills) ?? d.manualSkills
         excludeDirNames = try c.decodeIfPresent([String].self, forKey: .excludeDirNames) ?? d.excludeDirNames
         excludePathPrefixes = try c.decodeIfPresent([String].self, forKey: .excludePathPrefixes) ?? d.excludePathPrefixes

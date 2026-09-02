@@ -80,6 +80,8 @@ You, if you have more skills than you use daily, you work in more than one agent
 
 Default roots: `~/skillz` (your cold folder), `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`. Move skills out of the hot folders into `~/skillz` and they stop loading automatically but stay one click away.
 
+Slash-command files are included too. Each root has a kind: a **skills** root yields one entry per `SKILL.md` (named by its directory), a **commands** root yields one entry per `*.md` at any depth (named `sub:dir:stem`, so `~/.claude/commands/cl/implement_plan.md` is `cl:implement_plan`). Default commands roots: `~/.claude/commands`, `~/.codex/prompts`. The kind is per root, so a skill's own `README.md` or `references/*.md` is never mistaken for an entry.
+
 ## Skill mode CLI reference
 
 ```bash

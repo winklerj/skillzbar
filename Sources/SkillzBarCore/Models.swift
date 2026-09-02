@@ -3,7 +3,28 @@ import Foundation
 public let skillzBarVersion = "0.1.0"
 public let skillFileName = "SKILL.md"
 
-/// Stable identity: the canonical (symlink-resolved) absolute path of the preferred SKILL.md.
+/// What a root (or an entry) holds. A skills root yields one entry per `SKILL.md` (name = parent
+/// directory). A commands root yields one entry per `*.md` at any depth (name = `sub:dir:stem`,
+/// mirroring `/ns:command` slash-command namespacing). The kind is fixed per root so a skill's own
+/// `README.md` / `references/*.md` can never be mistaken for entries.
+public enum ContentKind: String, Codable, CaseIterable {
+    case skill, command
+}
+
+public struct ScanRoot: Hashable, Codable {
+    public var path: String
+    public var kind: ContentKind
+    public init(_ path: String, kind: ContentKind = .skill) { self.path = path; self.kind = kind }
+    /// Tolerant: a bare string (pre-typed-roots config files) is a skills root.
+    public init(from decoder: Decoder) throws {
+        if let s = try? decoder.singleValueContainer().decode(String.self) { path = s; kind = .skill; return }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decode(String.self, forKey: .path)
+        kind = try c.decodeIfPresent(ContentKind.self, forKey: .kind) ?? .skill
+    }
+}
+
+/// Stable identity: the canonical (symlink-resolved) absolute path of the preferred SKILL.md (or command .md).
 public struct SkillID: Hashable, Codable, Comparable, CustomStringConvertible {
     public let path: String
     public init(path: String) { self.path = path }
@@ -29,14 +50,15 @@ public enum SkillSource: Hashable, Codable {
 public struct SkillEntry: Hashable, Codable {
     public let id: SkillID
     public let name: String
+    public let kind: ContentKind
     public let byteSize: Int64
     public let modifiedNs: Int64
     /// SHA-256 hex. Only computed when needed for dedup; nil means "not needed, unique by size".
     public let contentHash: String?
     public let source: SkillSource
     public let duplicatePaths: [String]
-    public init(id: SkillID, name: String, byteSize: Int64, modifiedNs: Int64, contentHash: String?, source: SkillSource, duplicatePaths: [String]) {
-        self.id = id; self.name = name; self.byteSize = byteSize; self.modifiedNs = modifiedNs
+    public init(id: SkillID, name: String, kind: ContentKind = .skill, byteSize: Int64, modifiedNs: Int64, contentHash: String?, source: SkillSource, duplicatePaths: [String]) {
+        self.id = id; self.name = name; self.kind = kind; self.byteSize = byteSize; self.modifiedNs = modifiedNs
         self.contentHash = contentHash; self.source = source; self.duplicatePaths = duplicatePaths
     }
 }

@@ -20,9 +20,23 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Scan roots") {
-                pathList($cfg.roots, addTitle: "Add Folder…", directories: true)
+                ForEach(cfg.roots.indices, id: \.self) { i in
+                    HStack {
+                        Text(cfg.roots[i].path).font(.body.monospaced()).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        Picker("", selection: $cfg.roots[i].kind) {
+                            Text("Skills (SKILL.md)").tag(ContentKind.skill)
+                            Text("Commands (*.md)").tag(ContentKind.command)
+                        }.labelsHidden().frame(width: 170)
+                        Button(role: .destructive) { cfg.roots.remove(at: i) } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
+                    }
+                }
+                HStack {
+                    Button("Add Skills Folder…") { addRoot(kind: .skill) }
+                    Button("Add Commands Folder…") { addRoot(kind: .command) }
+                }
             }
-            Section("Manual SKILL.md files") {
+            Section("Manual files (SKILL.md, or a single command .md)") {
                 pathList($cfg.manualSkills, addTitle: "Add File…", directories: false)
             }
             Section("Excludes") {
@@ -56,6 +70,11 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 520, minHeight: 480)
+    }
+
+    func addRoot(kind: ContentKind) {
+        let p = NSOpenPanel(); p.canChooseDirectories = true; p.canChooseFiles = false; p.allowsMultipleSelection = true; p.showsHiddenFiles = true
+        if p.runModal() == .OK { for u in p.urls { cfg.roots.append(ScanRoot(AppPaths.abbreviate(u.path), kind: kind)) } }
     }
 
     @ViewBuilder

@@ -1,7 +1,9 @@
 import Foundation
 
 public struct Candidate: Hashable {
-    public let path: String        // resolved absolute path to SKILL.md
+    public let path: String        // resolved absolute path to SKILL.md / command .md
+    public let name: String
+    public let kind: ContentKind
     public let size: Int64
     public let modifiedNs: Int64
     public let inode: UInt64
@@ -38,11 +40,11 @@ public struct Scanner {
         let excludePrefixes = config.excludePathPrefixes.map { AppPaths.expand($0) }
 
         // Walk roots concurrently; each root gets its own accumulator.
-        let roots = config.roots.map { AppPaths.expand($0) }
+        let roots = config.roots.map { AppPaths.expand($0.path) }
         var perRoot = [RootResult](repeating: RootResult(), count: roots.count)
         let lock = NSLock()
         DispatchQueue.concurrentPerform(iterations: roots.count) { i in
-            let r = walkRoot(roots[i], excludeNames: excludeNames, excludePrefixes: excludePrefixes)
+            let r = walkRoot(roots[i], kind: config.roots[i].kind, excludeNames: excludeNames, excludePrefixes: excludePrefixes)
             lock.lock(); perRoot[i] = r; lock.unlock()
         }
         var candidates: [Candidate] = []
@@ -59,7 +61,11 @@ public struct Scanner {
                 let real = try fs.realpath(p)
                 let st = try fs.stat(real)
                 guard st.kind == .file else { report.skipped.append(.init(path: p, reason: "manual entry is not a regular file")); continue }
-                candidates.append(Candidate(path: real, size: st.size, modifiedNs: st.modifiedNs, inode: st.inode, device: st.device, source: .manual))
+                // A manual SKILL.md is a skill (named by its directory); any other .md is a single command file.
+                let file = (real as NSString).lastPathComponent
+                let kind: ContentKind = file == skillFileName ? .skill : .command
+                let name = kind == .skill ? Self.parentName(real) : Self.stem(file)
+                candidates.append(Candidate(path: real, name: name, kind: kind, size: st.size, modifiedNs: st.modifiedNs, inode: st.inode, device: st.device, source: .manual))
             } catch { report.skipped.append(.init(path: p, reason: "manual entry unreadable: \(error)")) }
         }
         report.candidates = candidates.count
@@ -77,34 +83,47 @@ public struct Scanner {
         var missing = false; var dirs = 0; var candidates: [Candidate] = []; var errors: [String] = []; var skipped: [ScanReport.Skipped] = []
     }
 
-    private func walkRoot(_ root: String, excludeNames: Set<String>, excludePrefixes: [String]) -> RootResult {
+    static func parentName(_ path: String) -> String {
+        (path as NSString).deletingLastPathComponent.split(separator: "/").last.map(String.init) ?? path
+    }
+    static func stem(_ file: String) -> String { (file as NSString).deletingPathExtension }
+    /// Command name: directory components relative to the root, then the file stem, joined by ":".
+    static func commandName(rel: [String], file: String) -> String { (rel + [stem(file)]).joined(separator: ":") }
+
+    private func walkRoot(_ root: String, kind: ContentKind, excludeNames: Set<String>, excludePrefixes: [String]) -> RootResult {
         var r = RootResult()
         guard let real = try? fs.realpath(root), let st = try? fs.stat(real), st.kind == .directory else { r.missing = true; return r }
         var visited: Set<UInt64> = [st.inode]     // cycle protection for symlinked directories
-        var stack: [(path: String, depth: Int)] = [(real, 0)]
+        var stack: [(path: String, rel: [String], depth: Int)] = [(real, [], 0)]
         let source = SkillSource.discovered(root: root)
-        while let (dir, depth) = stack.popLast() {
+        // Skills root: only SKILL.md counts. Commands root: every *.md counts.
+        func matches(_ name: String) -> Bool { kind == .skill ? name == skillFileName : name.hasSuffix(".md") }
+        while let (dir, rel, depth) = stack.popLast() {
             r.dirs += 1
             let entries: [DirEntry]
             do { entries = try fs.list(directory: dir) } catch { r.errors.append("\(error)"); continue }
             for e in entries {
                 let full = dir + "/" + e.name
+                func candidate(_ path: String, _ size: Int64, _ mod: Int64, _ ino: UInt64, _ dev: UInt32) -> Candidate {
+                    let name = kind == .skill ? Self.parentName(path) : Self.commandName(rel: rel, file: e.name)
+                    return Candidate(path: path, name: name, kind: kind, size: size, modifiedNs: mod, inode: ino, device: dev, source: source)
+                }
                 switch e.kind {
-                case .file where e.name == skillFileName:
-                    r.candidates.append(Candidate(path: full, size: e.size, modifiedNs: e.modifiedNs, inode: e.inode, device: e.device, source: source))
+                case .file where matches(e.name):
+                    r.candidates.append(candidate(full, e.size, e.modifiedNs, e.inode, e.device))
                 case .directory:
                     if excludeNames.contains(e.name) { r.skipped.append(.init(path: full, reason: "excluded dir name")); continue }
                     if excludePrefixes.contains(where: { full.hasPrefix($0) }) { r.skipped.append(.init(path: full, reason: "excluded path prefix")); continue }
                     if depth + 1 > maxDepth { r.skipped.append(.init(path: full, reason: "max depth")); continue }
                     if !visited.insert(e.inode).inserted { continue }
-                    stack.append((full, depth + 1))
+                    stack.append((full, rel + [e.name], depth + 1))
                 case .symlink:
                     guard let target = try? fs.realpath(full), let ts = try? fs.stat(target) else { continue }
                     if excludePrefixes.contains(where: { target.hasPrefix($0) }) { r.skipped.append(.init(path: full, reason: "symlink target excluded")); continue }
-                    if ts.kind == .file, e.name == skillFileName {
-                        r.candidates.append(Candidate(path: target, size: ts.size, modifiedNs: ts.modifiedNs, inode: ts.inode, device: ts.device, source: source))
+                    if ts.kind == .file, matches(e.name) {
+                        r.candidates.append(candidate(target, ts.size, ts.modifiedNs, ts.inode, ts.device))
                     } else if ts.kind == .directory, depth + 1 <= maxDepth, visited.insert(ts.inode).inserted, !excludeNames.contains(e.name) {
-                        stack.append((target, depth + 1))
+                        stack.append((target, rel + [e.name], depth + 1))
                     }
                 default: continue
                 }
@@ -161,7 +180,7 @@ public struct Scanner {
             } catch { errors.append("hash \(c.path): \(error)"); kept.append(c) }
         }
         let entries = kept.map { c in
-            SkillEntry(id: SkillID(path: c.path), name: (c.path as NSString).deletingLastPathComponent.split(separator: "/").last.map(String.init) ?? c.path,
+            SkillEntry(id: SkillID(path: c.path), name: c.name, kind: c.kind,
                        byteSize: c.size, modifiedNs: c.modifiedNs, contentHash: hashes["\(c.device):\(c.inode)"], source: c.source,
                        duplicatePaths: (inodeDups["\(c.device):\(c.inode)"] ?? []) + (dups[c.path] ?? []))
         }

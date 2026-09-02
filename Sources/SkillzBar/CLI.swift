@@ -10,7 +10,7 @@ enum CLI {
     Skills (no running app needed):
       list [--json] [--all]        known skills (hidden included with --all)
       find <query>                 fuzzy match, JSON candidates with scores
-      path <name|path>             print absolute path of SKILL.md
+      path <name|path>             print absolute path of the SKILL.md / command file
       cat <name|path>              print "<path>\\n\\n<contents>" (same as Option-click)
       copy <name|path> [--contents] put path (or contents payload) on the clipboard
       scan [--json]                rescan roots now; report entries, merges, skips

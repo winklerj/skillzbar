@@ -15,8 +15,24 @@ final class CoreTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         try content.write(toFile: p, atomically: true, encoding: .utf8)
     }
-    func config(roots: [String], manual: [String] = []) -> Config {
-        var c = Config.defaults; c.roots = roots; c.manualSkills = manual; c.excludePathPrefixes = []; return c
+    func config(roots: [String], commandRoots: [String] = [], manual: [String] = []) -> Config {
+        var c = Config.defaults
+        c.roots = roots.map { ScanRoot($0) } + commandRoots.map { ScanRoot($0, kind: .command) }
+        c.manualSkills = manual; c.excludePathPrefixes = []; return c
+    }
+
+    func testCommandsRootNamesByStemAndSkillRootIgnoresOtherMd() throws {
+        try mk("skills/s/SKILL.md", "s"); try mk("skills/s/README.md", "readme"); try mk("skills/s/references/r.md", "ref")
+        try mk("cmds/top.md", "t"); try mk("cmds/cl/implement_plan.md", "ip"); try mk("cmds/cl/notes.txt", "n")
+        try mk("m/single.md", "manual command")
+        var cache = HashCache()
+        let r = Scanner().scan(config: config(roots: [tmp + "/skills"], commandRoots: [tmp + "/cmds"], manual: [tmp + "/m/single.md"]), cache: &cache)
+        let byName = Dictionary(uniqueKeysWithValues: r.entries.map { ($0.name, $0) })
+        XCTAssertEqual(byName.keys.sorted(), ["cl:implement_plan", "s", "single", "top"], "\(r.entries)")
+        XCTAssertEqual(byName["s"]?.kind, .skill)
+        XCTAssertEqual(byName["cl:implement_plan"]?.kind, .command)
+        XCTAssertEqual(byName["cl:implement_plan"]?.id.path, tmp + "/cmds/cl/implement_plan.md")
+        XCTAssertEqual(byName["single"]?.kind, .command); XCTAssertEqual(byName["single"]?.source, .manual)
     }
 
     func testBulkListingMatchesFileManager() throws {
@@ -88,11 +104,12 @@ final class CoreTests: XCTestCase {
 
     func testConfigRoundTripAndTolerantDecode() throws {
         let p = tmp + "/config.json"
-        var c = Config.defaults; c.roots = ["~/skillz"]; c.setVisibility(.pinned, for: SkillID(path: "/p/SKILL.md"))
+        var c = Config.defaults; c.roots = [ScanRoot("~/skillz"), ScanRoot("~/c", kind: .command)]; c.setVisibility(.pinned, for: SkillID(path: "/p/SKILL.md"))
         try c.save(path: p)
         XCTAssertEqual(try Config.load(path: p), c)
-        try #"{"roots":["/only"]}"#.write(toFile: p, atomically: true, encoding: .utf8)
+        // Pre-typed-roots config: bare strings are skills roots; objects may omit kind.
+        try #"{"roots":["/only",{"path":"/c","kind":"command"},{"path":"/k"}]}"#.write(toFile: p, atomically: true, encoding: .utf8)
         let partial = try Config.load(path: p)
-        XCTAssertEqual(partial.roots, ["/only"]); XCTAssertEqual(partial.hotkey, .default)
+        XCTAssertEqual(partial.roots, [ScanRoot("/only"), ScanRoot("/c", kind: .command), ScanRoot("/k")]); XCTAssertEqual(partial.hotkey, .default)
     }
 }
