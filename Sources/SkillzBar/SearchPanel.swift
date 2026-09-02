@@ -124,6 +124,8 @@ struct SearchView: View {
     @ObservedObject var model: PanelModel
     let controller: SearchPanelController
     @FocusState private var focused: Bool
+    /// Height of the hidden titlebar region (traffic lights) the header must clear.
+    private var titlebarHeight: CGFloat { controller.panel.frame.height - controller.panel.contentLayoutRect.height }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -135,7 +137,7 @@ struct SearchView: View {
                 Toggle("hidden", isOn: $model.showHidden).toggleStyle(.checkbox).font(.caption).foregroundStyle(.secondary)
                 Toggle("group", isOn: Binding(get: { model.config.groupByRoot }, set: { v in controller.app.store.update { $0.groupByRoot = v }; controller.refresh() }))
                     .toggleStyle(.checkbox).font(.caption).foregroundStyle(.secondary)
-            }.padding(12)
+            }.padding(12).padding(.top, titlebarHeight)
             Divider()
             ScrollViewReader { proxy in
                 List {
@@ -157,6 +159,9 @@ struct SearchView: View {
             }.padding(.horizontal, 12).padding(.vertical, 6)
         }
         .frame(minWidth: 480, minHeight: 300)
+        // The panel uses .fullSizeContentView so the hosting view starts under the (transparent) titlebar.
+        // Consume the safe area here; otherwise the List extends up into it and rows scroll under the header.
+        .ignoresSafeArea()
         .onAppear { focused = true }
         .onExitCommand { controller.hide() }
         .onKeyPress(characters: .decimalDigits, phases: .down) { press in

@@ -145,6 +145,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: ctl
 
+    /// Top-left-origin frames (in window points) of the header text field and the list scroll view, for layout checks.
+    static func layout(of w: NSWindow) -> [String: [Double]] {
+        guard let root = w.contentView else { return [:] }
+        var out: [String: [Double]] = [:]
+        func walk(_ v: NSView) {
+            let r = root.convert(v.bounds, from: v)
+            let flippedY = root.isFlipped ? r.minY : root.bounds.height - r.maxY
+            let f = [r.minX, flippedY, r.width, r.height].map { Double($0) }
+            if v is NSTextField, out["searchField"] == nil, v.frame.height > 16 { out["searchField"] = f }
+            if v is NSScrollView { out["list"] = f }
+            v.subviews.forEach(walk)
+        }
+        walk(root)
+        out["content"] = [0, 0, Double(root.bounds.width), Double(root.bounds.height)]
+        out["titlebar"] = [0, 0, Double(w.frame.width), Double(w.frame.height - w.contentLayoutRect.height)]
+        return out
+    }
+
     func handleCtl(_ req: CtlRequest) -> String {
         struct OK<T: Encodable>: Encodable { let ok = true; let result: T }
         func ok<T: Encodable>(_ v: T) -> String { JSON.string(OK(result: v)) }
@@ -171,14 +189,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "close-menu": menu.cancelTracking(); return ok("menu closed")
         case "ui":
             // Programmatic UI state, since screenshots need Screen Recording permission.
-            struct UI: Encodable { let statusItemOnScreen: Bool; let statusItemFrame: [Double]; let iconSymbol: String?; let menuOpen: Bool; let panelVisible: Bool; let panelFrame: [Double]?; let panelQuery: String?; let panelSelected: Int?; let panelRows: [String]?; let settingsVisible: Bool; let hotkey: String; let loginItemStatus: String }
+            struct UI: Encodable { let statusItemOnScreen: Bool; let statusItemFrame: [Double]; let iconSymbol: String?; let menuOpen: Bool; let panelVisible: Bool; let panelFrame: [Double]?; let panelQuery: String?; let panelSelected: Int?; let panelRows: [String]?; let panelLayout: [String: [Double]]?; let settingsVisible: Bool; let hotkey: String; let loginItemStatus: String }
             let f = statusItem.button?.window?.frame ?? .zero
             let pf = panel?.panel.frame
             return ok(UI(statusItemOnScreen: f.width > 0 && NSScreen.screens.contains { $0.frame.intersects(f) },
                          statusItemFrame: [f.origin.x, f.origin.y, f.width, f.height], iconSymbol: statusItem.button?.image?.name(),
                          menuOpen: menu.highlightedItem != nil || menuIsOpen, panelVisible: panel?.panel.isVisible ?? false,
                          panelFrame: pf.map { [$0.origin.x, $0.origin.y, $0.width, $0.height] },
-                         panelQuery: panel?.model.query, panelSelected: panel?.model.selected, panelRows: panel?.model.rows.map(\.entry.name),
+                         panelQuery: panel?.model.query, panelSelected: panel?.model.selected, panelRows: panel?.model.rows.map(\.entry.name), panelLayout: panel.map { Self.layout(of: $0.panel) },
                          settingsVisible: settings?.isVisible ?? false, hotkey: store.config.hotkey.display,
                          loginItemStatus: Bundle.main.bundleIdentifier == nil ? "bare-executable" : "\(SMAppService.mainApp.status.rawValue) (0=notRegistered 1=enabled 2=requiresApproval 3=notFound)"))
         case "key":
