@@ -5,6 +5,10 @@ import SkillzBarCore
 final class PanelModel: ObservableObject {
     @Published var query = ""
     @Published var selected = 0
+    /// Bumped whenever the visible result set must start from the top (new query, panel shown).
+    /// SwiftUI's List preserves scroll offset anchored to surviving row identities across data
+    /// changes, so a new result set can otherwise appear pre-scrolled.
+    @Published var scrollGeneration = 0
     @Published var showHidden = false
     @Published var entries: [SkillEntry] = []
     @Published var config = Config.defaults
@@ -99,7 +103,7 @@ final class SearchPanelController {
 
     func show() {
         refresh()
-        model.query = ""; model.selected = 0
+        model.query = ""; model.selected = 0; model.scrollGeneration += 1
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
         if let f = screen?.visibleFrame {
@@ -133,7 +137,7 @@ struct SearchView: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search skills — ⏎ copy path · ⌥⏎ copy contents · 1–9 quick copy", text: $model.query)
                     .textFieldStyle(.plain).font(.title3).focused($focused)
-                    .onChange(of: model.query) { _, _ in model.selected = 0 }
+                    .onChange(of: model.query) { _, _ in model.selected = 0; model.scrollGeneration += 1 }
                 Toggle("hidden", isOn: $model.showHidden).toggleStyle(.checkbox).font(.caption).foregroundStyle(.secondary)
                 Toggle("group", isOn: Binding(get: { model.config.groupByRoot }, set: { v in controller.app.store.update { $0.groupByRoot = v }; controller.refresh() }))
                     .toggleStyle(.checkbox).font(.caption).foregroundStyle(.secondary)
@@ -150,6 +154,7 @@ struct SearchView: View {
                 }
                 .listStyle(.plain)
                 .onChange(of: model.selected) { _, i in if i < model.rows.count { proxy.scrollTo(model.rows[i].entry.id) } }
+                .onChange(of: model.scrollGeneration) { _, _ in if let first = model.rows.first { proxy.scrollTo(first.entry.id, anchor: .top) } }
             }
             Divider()
             HStack {
