@@ -109,7 +109,8 @@ final class SearchPanelController {
         if let f = screen?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: f.midX - panel.frame.width / 2, y: f.midY - panel.frame.height / 2 + f.height * 0.15))
         }
-        NSApp.activate(ignoringOtherApps: true)
+        // Nonactivating panel: takes key focus without activating SkillzBar, so the previous app stays
+        // active and regains keyboard focus the moment the panel is ordered out (Spotlight-style).
         panel.makeKeyAndOrderFront(nil)
     }
     func hide() { panel.orderOut(nil) }

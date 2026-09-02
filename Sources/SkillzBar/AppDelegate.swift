@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "close-menu": menu.cancelTracking(); return ok("menu closed")
         case "ui":
             // Programmatic UI state, since screenshots need Screen Recording permission.
-            struct UI: Encodable { let statusItemOnScreen: Bool; let statusItemFrame: [Double]; let iconSymbol: String?; let menuOpen: Bool; let panelVisible: Bool; let panelFrame: [Double]?; let panelQuery: String?; let panelSelected: Int?; let panelRows: [String]?; let panelLayout: [String: [Double]]?; let settingsVisible: Bool; let hotkey: String; let loginItemStatus: String }
+            struct UI: Encodable { let statusItemOnScreen: Bool; let statusItemFrame: [Double]; let iconSymbol: String?; let menuOpen: Bool; let panelVisible: Bool; let panelFrame: [Double]?; let panelQuery: String?; let panelSelected: Int?; let panelRows: [String]?; let panelLayout: [String: [Double]]?; let settingsVisible: Bool; let appActive: Bool; let hotkey: String; let loginItemStatus: String }
             let f = statusItem.button?.window?.frame ?? .zero
             let pf = panel?.panel.frame
             return ok(UI(statusItemOnScreen: f.width > 0 && NSScreen.screens.contains { $0.frame.intersects(f) },
@@ -202,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                          menuOpen: menu.highlightedItem != nil || menuIsOpen, panelVisible: panel?.panel.isVisible ?? false,
                          panelFrame: pf.map { [$0.origin.x, $0.origin.y, $0.width, $0.height] },
                          panelQuery: panel?.model.query, panelSelected: panel?.model.selected, panelRows: panel?.model.rows.map(\.entry.name), panelLayout: panel.map { Self.layout(of: $0.panel) },
-                         settingsVisible: settings?.isVisible ?? false, hotkey: store.config.hotkey.display,
+                         settingsVisible: settings?.isVisible ?? false, appActive: NSApp.isActive, hotkey: store.config.hotkey.display,
                          loginItemStatus: Bundle.main.bundleIdentifier == nil ? "bare-executable" : "\(SMAppService.mainApp.status.rawValue) (0=notRegistered 1=enabled 2=requiresApproval 3=notFound)"))
         case "snapshot":
             // In-process render of the panel's view hierarchy to PNG. No Screen Recording permission needed.
