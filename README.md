@@ -34,3 +34,7 @@ make install    # ~/Applications/SkillzBar.app + ~/.local/bin/skillzbar
 ```
 
 Files: config `~/Library/Application Support/SkillzBar/config.json`, log `~/Library/Logs/SkillzBar/skillzbar.jsonl`.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
