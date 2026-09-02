@@ -2,7 +2,7 @@
 
 A macOS menu bar app for the agent skills you don't want loaded into every session.
 
-Click the icon, click a skill, and the absolute path to its `SKILL.md` is on your clipboard. Option-click and you get the path plus the whole file. Hit ⌥⌘P and fuzzy-search all of them without touching the mouse. Or skip the UI entirely and let your agent pull skills itself with `skillzbar cat <name>`.
+Click the icon, click a skill, and the absolute path to its `SKILL.md` is on your clipboard. Option-click and you get the path plus the whole file. Hit ⌥⌘P and fuzzy-search all of them without touching the mouse. Or skip the UI entirely from a shell with `skillzbar cat <name> | pbcopy`.
 
 Spec: [docs/SPEC.md](docs/SPEC.md).
 
@@ -55,7 +55,7 @@ It composes the way a Unix tool does: into a prompt file, into a heredoc for a h
 
 ## The part I insist on: an agent can debug it without me
 
-I build tools with agents now, and the thing that slows that down most is "the app looks wrong" being unverifiable from a terminal. So SkillzBar exposes everything over a local socket:
+I build tools with agents now, and the thing that slows that down most is "the app looks wrong" being unverifiable from a terminal. This is the one place an agent does talk to SkillzBar: not the agent doing my work, but the one fixing the app. It gets everything over a local socket:
 
 ```bash
 skillzbar ctl ui             # is the status item on screen, is the panel visible, which row is selected
