@@ -46,7 +46,7 @@ skillzbar find rank          # fuzzy candidates as JSON
 skillzbar list --json
 ```
 
-Now my `CLAUDE.md` can say "if you need the diary skill, run `skillzbar cat diary`" and the agent fetches it on demand, from the canonical location, with zero standing context cost. This is skill mode: code mode, but for skills. The cold skills are not just cold for me; they are cold for the agent, and warm the moment either of us asks.
+Now my `CLAUDE.md` can say "if you need the diary skill, run `skillzbar cat diary`" and the agent fetches it on demand, from the canonical location, with zero standing context cost. This is skill mode: **code mode**, but for skills. The cold skills are not just cold for me; they are cold for the agent, and warm the moment either of us asks.
 
 ## The part I insist on: an agent can debug it without me
 
