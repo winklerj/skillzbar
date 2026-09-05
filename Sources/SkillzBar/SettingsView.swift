@@ -36,6 +36,9 @@ struct SettingsView: View {
                     Button("Add Commands Folder…") { addRoot(kind: .command) }
                 }
             }
+            Section("Cold folder (⇧⏎ / ⇧-click moves here; commands go under commands/)") {
+                TextField("~/skillz", text: $cfg.coldRoot).font(.body.monospaced())
+            }
             Section("Manual files (SKILL.md, or a single command .md)") {
                 pathList($cfg.manualSkills, addTitle: "Add File…", directories: false)
             }

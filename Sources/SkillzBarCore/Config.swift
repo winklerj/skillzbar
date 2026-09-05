@@ -10,10 +10,12 @@ public struct Config: Codable, Equatable {
     public var maxQuickRows: Int
     public var hotkey: HotKeySpec
     public var launchAtLogin: Bool
+    /// Where ⇧-select moves entries: skills as `<coldRoot>/<dir>`, commands as `<coldRoot>/commands/<rel>`.
+    public var coldRoot: String
 
     public static let defaults = Config(
         roots: [ScanRoot("~/skillz"), ScanRoot("~/.claude/skills"), ScanRoot("~/.codex/skills"), ScanRoot("~/.agents/skills"),
-                ScanRoot("~/.claude/commands", kind: .command), ScanRoot("~/.codex/prompts", kind: .command)],
+                ScanRoot("~/.claude/commands", kind: .command), ScanRoot("~/.codex/prompts", kind: .command), ScanRoot("~/skillz/commands", kind: .command)],
         manualSkills: [],
         excludeDirNames: ["node_modules", ".git", ".tmp", ".build", ".system", "DerivedData"],
         excludePathPrefixes: ["~/Library", "~/.claude/plugins", "~/.codex/plugins", "~/.codex/.tmp"],
@@ -21,14 +23,15 @@ public struct Config: Codable, Equatable {
         groupByRoot: false,
         maxQuickRows: 20,
         hotkey: .default,
-        launchAtLogin: false
+        launchAtLogin: false,
+        coldRoot: "~/skillz"
     )
 
     public init(roots: [ScanRoot], manualSkills: [String], excludeDirNames: [String], excludePathPrefixes: [String],
-                visibility: [String: Visibility], groupByRoot: Bool, maxQuickRows: Int, hotkey: HotKeySpec, launchAtLogin: Bool) {
+                visibility: [String: Visibility], groupByRoot: Bool, maxQuickRows: Int, hotkey: HotKeySpec, launchAtLogin: Bool, coldRoot: String = "~/skillz") {
         self.roots = roots; self.manualSkills = manualSkills; self.excludeDirNames = excludeDirNames
         self.excludePathPrefixes = excludePathPrefixes; self.visibility = visibility; self.groupByRoot = groupByRoot
-        self.maxQuickRows = maxQuickRows; self.hotkey = hotkey; self.launchAtLogin = launchAtLogin
+        self.maxQuickRows = maxQuickRows; self.hotkey = hotkey; self.launchAtLogin = launchAtLogin; self.coldRoot = coldRoot
     }
 
     // Tolerant decoding: missing keys fall back to defaults so old config files keep working.
@@ -44,6 +47,7 @@ public struct Config: Codable, Equatable {
         maxQuickRows = try c.decodeIfPresent(Int.self, forKey: .maxQuickRows) ?? d.maxQuickRows
         hotkey = try c.decodeIfPresent(HotKeySpec.self, forKey: .hotkey) ?? d.hotkey
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
+        coldRoot = try c.decodeIfPresent(String.self, forKey: .coldRoot) ?? d.coldRoot
     }
 
     public func visibility(of id: SkillID) -> Visibility? { visibility[id.path] }

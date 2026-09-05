@@ -2,7 +2,10 @@ import Foundation
 
 public enum AppPaths {
     public static let bundleID = "dev.robb.SkillzBar"
-    public static var home: String { NSHomeDirectory() }
+    /// `SKILLZBAR_HOME` overrides the home directory for every path here (config, log, socket, `~` expansion),
+    /// so an agent can exercise the CLI or a second app instance against a scratch tree. `NSHomeDirectory()`
+    /// ignores `$HOME`, which is why a plain env override is not enough.
+    public static var home: String { ProcessInfo.processInfo.environment["SKILLZBAR_HOME"] ?? NSHomeDirectory() }
     public static var supportDir: String { home + "/Library/Application Support/SkillzBar" }
     public static var logDir: String { home + "/Library/Logs/SkillzBar" }
     public static var configFile: String { supportDir + "/config.json" }

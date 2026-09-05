@@ -13,6 +13,7 @@ enum CLI {
       path <name|path>             print absolute path of the SKILL.md / command file
       cat <name|path>              print "<path>\\n\\n<contents>" (same as Option-click)
       copy <name|path> [--contents] put path (or contents payload) on the clipboard
+      move <name|path>             move into the cold root (skill: whole dir; command: commands/<rel>)
       scan [--json]                rescan roots now; report entries, merges, skips
       status [--json]              version, paths, config, last scan, stale pins, recent errors
       log [--tail N] [--errors]    JSON-lines log records
@@ -23,6 +24,7 @@ enum CLI {
       ctl key "dia @down @return"     synthesize keys into the shown panel (@down @up @return @opt-return @esc)
       ctl snapshot [path.png]           render the shown panel to PNG in-process (no screen-recording permission)
       ctl copy <name|path> [--contents]
+      ctl move <name|path>              same move as ⇧⏎ / ⇧-click, via the running app
     """
 
     static func run(_ args: [String]) -> Int32 {
@@ -63,6 +65,15 @@ enum CLI {
             let hits = Fuzzy.rank(q, entries: store.entries).prefix(10).map { Hit(name: $0.entry.name, path: $0.entry.id.path, score: $0.score) }
             out(JSON.string(Array(hits)))
             return hits.isEmpty ? 2 : 0
+
+        case "move":
+            guard let q = positional() else { return fail("move needs a skill name or path") }
+            store.rescan()
+            do {
+                let r = try store.move(try store.resolve(q).id)
+                if json { out(JSON.string(r)) } else { out("moved \(r.kind.rawValue) \(r.name)\n  \(r.from)\n  → \(r.to)") }
+                return 0
+            } catch { return fail("\(error)") }
 
         case "path", "cat", "copy":
             guard let q = positional() else { return fail("\(cmd) needs a skill name or path") }

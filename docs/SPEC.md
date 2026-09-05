@@ -57,7 +57,8 @@ The same binary runs as app or CLI. Shared core library; no UI in core.
 - `skillzbar scan --json` — run discovery with current config, print entries + dedup decisions + skipped paths with reasons.
 - `skillzbar status --json` — version, config path, roots, exclude patterns, entry count, last scan time, last N errors.
 - `skillzbar copy <id> [--contents]` — perform the copy; prints what went to clipboard.
-- `skillzbar ctl <ping|status|list|menu|panel|rescan|errors|copy|show|hide|open-menu|close-menu|ui|key>` — talks to the *running* app over a Unix domain socket (`~/Library/Application Support/SkillzBar/ctl.sock`) so live state can be inspected and driven.
+- `skillzbar move <id>` — move into `cold_root` (skill: whole directory → `<cold>/<dir>`; command: file → `<cold>/commands/<path relative to its root>`, dirs created, `<cold>/commands` registered as a commands root). Refuses rather than overwrites; refuses manual, symlink-resolved-outside-root, and already-cold entries. Migrates pinned/hidden and usage keys to the new id. UI: `⇧⏎` / `⇧-click` in the panel, `⇧-click` in the menu.
+- `skillzbar ctl <ping|status|list|menu|panel|rescan|errors|copy|move|show|hide|open-menu|close-menu|ui|key|snapshot>` — talks to the *running* app over a Unix domain socket (`~/Library/Application Support/SkillzBar/ctl.sock`) so live state can be inspected and driven.
 - `skillzbar ctl menu --json` — emits exactly what the quick menu would render: computed N, screen height used, ordered rows each with the reason it is present (pinned / usage count / name fallback), and the rows that were cut. `ctl panel --json` does the same for the search panel including grouping. This is how an agent verifies ordering/truncation without a human looking at the screen.
 - `skillzbar log --tail N` — JSON-lines log at `~/Library/Logs/SkillzBar/skillzbar.jsonl`. Every error record includes: timestamp, operation, file/line, error type, message, underlying `NSError` domain/code, and relevant paths.
 - Menu `Copy Diagnostics` — copies `status --json` + last 50 log lines. This is the "hand it to an agent" path.
@@ -71,6 +72,7 @@ The same binary runs as app or CLI. Shared core library; no UI in core.
 - group_by_root: bool (search panel)
 - hotkey (single, default `⌥⌘P`): opens the search panel with focus in the search field, top-N rows pre-listed with `1`–`9` shortcuts, `↑↓⏎` to select, `⌥⏎` for contents. One hotkey serves both quick and search cases; the menu bar icon stays the mouse path. `⌥⌘` is a thumb chord (left hand), `P` is right hand. Conflicts detected at registration and logged; rebindable in Settings.
 - launch_at_login: bool (`SMAppService`)
+- cold_root: path (default `~/skillz`), destination for move
 
 ## Data model (invalid state unrepresentable)
 

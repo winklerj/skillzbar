@@ -2,7 +2,7 @@ import Foundation
 
 /// Line-delimited JSON over a Unix domain socket. One request per connection.
 public struct CtlRequest: Codable {
-    public var command: String       // list | menu | panel | rescan | errors | copy | status | ping
+    public var command: String       // list | menu | panel | rescan | errors | copy | move | status | ping | show | hide | ui | key | snapshot
     public var arg: String?
     public var contents: Bool?
     public var all: Bool?

@@ -74,6 +74,21 @@ public final class SkillStore {
 
     public func entry(_ id: SkillID) -> SkillEntry? { q.sync { _entries.first { $0.id == id } } }
 
+    /// ⇧-select: move into `config.coldRoot`, persist migrated config/usage, rescan. See `Mover`.
+    public func move(_ id: SkillID) throws -> MoveResult {
+        let r: MoveResult = try q.sync {
+            guard let e = _entries.first(where: { $0.id == id }) else { throw SkillzError.notFound(query: id.path) }
+            _usage = Usage.load()
+            let r = try Mover.move(e, config: &_config, usage: &_usage, fs: fs)
+            do { try _config.save() } catch { Log.shared.error("config.save", error, paths: [AppPaths.configFile]) }
+            do { try _usage.save() } catch { Log.shared.error("usage.save", error, paths: [AppPaths.usageFile]) }
+            Log.shared.info("move", "\(e.kind.rawValue) \(e.name)" + (e.duplicatePaths.isEmpty ? "" : "; duplicates left in place: \(e.duplicatePaths.count)"), paths: [r.from, r.to] + e.duplicatePaths)
+            return r
+        }
+        rescan()
+        return r
+    }
+
     /// Resolve a user-supplied name or path to exactly one entry.
     public func resolve(_ query: String) throws -> SkillEntry {
         let es = entries

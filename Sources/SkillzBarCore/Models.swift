@@ -68,6 +68,17 @@ public enum Visibility: String, Codable { case pinned, hidden }
 
 public enum CopyKind: String, Codable { case path, contents }
 
+public struct MoveResult: Codable {
+    public let name: String
+    public let kind: ContentKind
+    public let from: String
+    public let to: String
+    /// New identity after the move (SKILL.md inside the moved directory, or the moved command file).
+    public let id: SkillID
+    /// Same-content copies in other roots that were NOT moved (dedup kept only `from`); they stay hot.
+    public let duplicatePaths: [String]
+}
+
 public struct UsageStat: Codable, Equatable {
     public var count: Int
     public var lastCopiedAt: Date
@@ -97,6 +108,7 @@ public enum SkillzError: Error, CustomStringConvertible {
     case ambiguous(query: String, candidates: [String])
     case invalidConfig(String)
     case ctl(String)
+    case moveRefused(path: String, reason: String)
     public var description: String {
         switch self {
         case .posix(let op, let path, let e): return "\(op) failed for \(path): \(String(cString: strerror(e))) (errno \(e))"
@@ -104,6 +116,7 @@ public enum SkillzError: Error, CustomStringConvertible {
         case .ambiguous(let q, let c): return "'\(q)' is ambiguous: \(c.joined(separator: ", "))"
         case .invalidConfig(let m): return "invalid config: \(m)"
         case .ctl(let m): return "ctl: \(m)"
+        case .moveRefused(let p, let r): return "not moving \(p): \(r)"
         }
     }
 }

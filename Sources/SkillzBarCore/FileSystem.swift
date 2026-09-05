@@ -28,6 +28,10 @@ public protocol SkillFileSystem {
     func stat(_ path: String) throws -> FileStat
     func realpath(_ path: String) throws -> String
     func read(_ path: String) throws -> Data
+    func exists(_ path: String) -> Bool
+    func makeDirectory(_ path: String) throws
+    /// Rename; falls back to copy+delete across volumes (FileManager semantics). Never overwrites.
+    func move(_ from: String, to: String) throws
 }
 
 /// Direct POSIX implementation. Directory listing uses getattrlistbulk(2): one syscall returns
@@ -56,6 +60,13 @@ public struct DirectFileSystem: SkillFileSystem {
 
     public func read(_ path: String) throws -> Data {
         try Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)
+    }
+    public func exists(_ path: String) -> Bool { var st = Darwin.stat(); return lstat(path, &st) == 0 }
+    public func makeDirectory(_ path: String) throws {
+        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+    }
+    public func move(_ from: String, to: String) throws {
+        try FileManager.default.moveItem(atPath: from, toPath: to)
     }
 
     private func kind(ofMode m: mode_t) -> EntryKind {

@@ -104,12 +104,75 @@ final class CoreTests: XCTestCase {
 
     func testConfigRoundTripAndTolerantDecode() throws {
         let p = tmp + "/config.json"
-        var c = Config.defaults; c.roots = [ScanRoot("~/skillz"), ScanRoot("~/c", kind: .command)]; c.setVisibility(.pinned, for: SkillID(path: "/p/SKILL.md"))
+        var c = Config.defaults; c.roots = [ScanRoot("~/skillz"), ScanRoot("~/c", kind: .command)]; c.setVisibility(.pinned, for: SkillID(path: "/p/SKILL.md")); c.coldRoot = "~/cold"
         try c.save(path: p)
         XCTAssertEqual(try Config.load(path: p), c)
         // Pre-typed-roots config: bare strings are skills roots; objects may omit kind.
         try #"{"roots":["/only",{"path":"/c","kind":"command"},{"path":"/k"}]}"#.write(toFile: p, atomically: true, encoding: .utf8)
         let partial = try Config.load(path: p)
-        XCTAssertEqual(partial.roots, [ScanRoot("/only"), ScanRoot("/c", kind: .command), ScanRoot("/k")]); XCTAssertEqual(partial.hotkey, .default)
+        XCTAssertEqual(partial.roots, [ScanRoot("/only"), ScanRoot("/c", kind: .command), ScanRoot("/k")]); XCTAssertEqual(partial.hotkey, .default); XCTAssertEqual(partial.coldRoot, "~/skillz")
+    }
+    // MARK: move to cold root
+
+    func scanned(_ c: Config) -> [String: SkillEntry] {
+        var cache = HashCache()
+        return Dictionary(uniqueKeysWithValues: Scanner().scan(config: c, cache: &cache).entries.map { ($0.name, $0) })
+    }
+
+    func testMoveSkillMovesWholeDirectoryAndMigratesKeys() throws {
+        try mk("hot/diary/SKILL.md", "d"); try mk("hot/diary/references/r.md", "ref")
+        var c = config(roots: [tmp + "/hot"]); c.coldRoot = tmp + "/cold"
+        let e = try XCTUnwrap(scanned(c)["diary"])
+        c.setVisibility(.pinned, for: e.id)
+        var u = Usage(); u.record(e.id)
+        let r = try Mover.move(e, config: &c, usage: &u, fs: DirectFileSystem())
+        XCTAssertEqual(r.from, tmp + "/hot/diary"); XCTAssertEqual(r.to, tmp + "/cold/diary")
+        XCTAssertEqual(r.id.path, tmp + "/cold/diary/SKILL.md")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tmp + "/cold/diary/references/r.md"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tmp + "/hot/diary"))
+        XCTAssertEqual(c.visibility(of: r.id), .pinned); XCTAssertNil(c.visibility(of: e.id))
+        XCTAssertEqual(u.count(r.id), 1); XCTAssertEqual(u.count(e.id), 0)
+        XCTAssertEqual(c.roots.count, 1, "skills need no extra root")
+        // Rescanning with the cold root registered finds it at the new id.
+        c.roots.append(ScanRoot(tmp + "/cold"))
+        XCTAssertEqual(scanned(c)["diary"]?.id, r.id)
+    }
+
+    func testMoveCommandMirrorsRelativePathAndRegistersColdCommandsRoot() throws {
+        try mk("cmds/cl/implement_plan.md", "ip"); try mk("cmds/top.md", "t")
+        var c = config(roots: [], commandRoots: [tmp + "/cmds"]); c.coldRoot = tmp + "/cold"
+        let e = try XCTUnwrap(scanned(c)["cl:implement_plan"])
+        var u = Usage()
+        let r = try Mover.move(e, config: &c, usage: &u, fs: DirectFileSystem())
+        XCTAssertEqual(r.to, tmp + "/cold/commands/cl/implement_plan.md"); XCTAssertEqual(r.id.path, r.to)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: r.to)); XCTAssertFalse(FileManager.default.fileExists(atPath: e.id.path))
+        XCTAssertEqual(c.roots.last, ScanRoot(tmp + "/cold/commands", kind: .command))
+        // Same name survives the move; a second move does not duplicate the root.
+        let after = scanned(c)
+        XCTAssertEqual(after["cl:implement_plan"]?.id, r.id); XCTAssertEqual(after["cl:implement_plan"]?.source, .discovered(root: tmp + "/cold/commands"))
+        _ = try Mover.move(try XCTUnwrap(after["top"]), config: &c, usage: &u, fs: DirectFileSystem())
+        XCTAssertEqual(c.roots.filter { $0.kind == .command }.count, 2)
+    }
+
+    func testMoveRefusalsNeverTouchDisk() throws {
+        try mk("hot/a/SKILL.md", "a"); try mk("cold/a/SKILL.md", "a"); try mk("cold/b/SKILL.md", "b")   // same-content dup: hot/a is kept (root order)
+        try mk("m/single.md", "manual")
+        try mk("elsewhere/link/SKILL.md", "linked")
+        try FileManager.default.createSymbolicLink(atPath: tmp + "/hot/link", withDestinationPath: tmp + "/elsewhere/link")
+        var c = config(roots: [tmp + "/hot", tmp + "/cold"], manual: [tmp + "/m/single.md"]); c.coldRoot = tmp + "/cold"
+        let es = scanned(c); var u = Usage(); let fs = DirectFileSystem()
+        func refused(_ name: String, _ needle: String, line: UInt = #line) {
+            XCTAssertThrowsError(try Mover.move(try XCTUnwrap(es[name]), config: &c, usage: &u, fs: fs), name, line: line) { err in
+                XCTAssertTrue("\(err)".contains(needle), "\(err)", line: line)
+            }
+        }
+        XCTAssertEqual(es["a"]?.id.path, tmp + "/hot/a/SKILL.md")
+        refused("a", "destination exists")
+        refused("b", "already under cold root")
+        refused("single", "manual entry")
+        refused("link", "reached through a symlink")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tmp + "/hot/a/SKILL.md"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tmp + "/elsewhere/link/SKILL.md"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tmp + "/cold/a/SKILL.md"))
     }
 }

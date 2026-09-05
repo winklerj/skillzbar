@@ -48,12 +48,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if nameCounts[row.entry.name, default: 0] > 1 { title += "  (\(AppPaths.abbreviate(row.entry.source.rootLabel)))" }
             let item = NSMenuItem(title: title, action: #selector(copyPath(_:)), keyEquivalent: key)
             item.target = self; item.representedObject = row.entry.id.path
-            item.toolTip = "\(AppPaths.abbreviate(row.entry.id.path))  ·  \(Self.size(row.entry.byteSize))\nClick: copy path   ⌥-click: copy contents"
+            item.toolTip = "\(AppPaths.abbreviate(row.entry.id.path))  ·  \(Self.size(row.entry.byteSize))\nClick: copy path   ⌥-click: copy contents   ⇧-click: move to \(store.config.coldRoot)"
             menu.addItem(item)
             let alt = NSMenuItem(title: title + "  — copy contents", action: #selector(copyContents(_:)), keyEquivalent: key)
             alt.target = self; alt.representedObject = row.entry.id.path
             alt.keyEquivalentModifierMask = .option; alt.isAlternate = true
             menu.addItem(alt)
+            // ⇧ alone (no key equivalent): a filesystem move must not hang off ⇧⌘digit.
+            let mv = NSMenuItem(title: title + "  — move to \(store.config.coldRoot)", action: #selector(moveToCold(_:)), keyEquivalent: "")
+            mv.target = self; mv.representedObject = row.entry.id.path
+            mv.keyEquivalentModifierMask = .shift; mv.isAlternate = true
+            menu.addItem(mv)
         }
         menu.addItem(.separator())
         let more = NSMenuItem(title: plan.cut.isEmpty ? "Search…" : "More… (\(plan.cut.count) more)", action: #selector(showPanel), keyEquivalent: "")
@@ -77,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func copyPath(_ sender: NSMenuItem) { if let p = sender.representedObject as? String { copy(SkillID(path: p), kind: .path) } }
     @objc func copyContents(_ sender: NSMenuItem) { if let p = sender.representedObject as? String { copy(SkillID(path: p), kind: .contents) } }
+    @objc func moveToCold(_ sender: NSMenuItem) { if let p = sender.representedObject as? String, move(SkillID(path: p)) == nil { NSSound.beep() } }
 
     /// Central copy: clipboard, usage, feedback. Returns what was copied (for ctl).
     @discardableResult
@@ -91,13 +97,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch { Log.shared.error("copy", error, paths: [id.path]); return nil }
     }
 
+    /// Central move: filesystem move via the store, feedback. Clipboard untouched. Returns nil on refusal/error (logged).
+    @discardableResult
+    func move(_ id: SkillID) -> MoveResult? {
+        do { let r = try store.move(id); flashIcon("arrow.down.to.line.circle.fill"); return r }
+        catch { Log.shared.error("move", error, paths: [id.path]); return nil }
+    }
+
     func setIcon(_ symbol: String) {
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "SkillzBar")
         img?.isTemplate = true
         statusItem.button?.image = img
     }
-    func flashIcon() {
-        setIcon("checkmark.circle.fill")
+    /// Copy = checkmark; move = down-arrow, so the two feel different (the moved entry stays listed because ~/skillz is a root).
+    func flashIcon(_ symbol: String = "checkmark.circle.fill") {
+        setIcon(symbol)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in self?.setIcon("book.closed") }
     }
 
@@ -231,6 +245,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let e = try store.resolve(q)
                 guard let text = copy(e.id, kind: req.contents == true ? .contents : .path) else { return JSON.string(CtlFailure(error: "copy failed; see errors")) }
                 return ok(["skill": e.name, "path": e.id.path, "clipboardChars": String(text.count)])
+            } catch { return JSON.string(CtlFailure(error: "\(error)")) }
+        case "move":
+            guard let q = req.arg else { return JSON.string(CtlFailure(error: "move needs a skill")) }
+            do {
+                let e = try store.resolve(q)
+                guard let r = move(e.id) else { return JSON.string(CtlFailure(error: "move refused; see `ctl errors`")) }
+                return ok(r)
             } catch { return JSON.string(CtlFailure(error: "\(error)")) }
         default: return JSON.string(CtlFailure(error: "unknown command \(req.command)"))
         }

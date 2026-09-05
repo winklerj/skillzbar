@@ -74,13 +74,14 @@ You, if you have more skills than you use daily, you work in more than one agent
 ## Use
 
 - **Click** the menu bar icon → skills list. **Click** a skill: its `SKILL.md` path is on the clipboard. **⌥-click**: path line + blank line + full contents. `⌘1`–`⌘9` pick the top rows while the menu is open.
-- **⌥⌘P** (configurable) → search panel. Type to filter, `↑↓⏎`, `⌥⏎` for contents, `1`–`9` for the top rows. Right-click a row to pin / hide / reveal.
+- **⌥⌘P** (configurable) → search panel. Type to filter, `↑↓⏎`, `⌥⏎` for contents, `⇧⏎` to move to the cold folder, `1`–`9` for the top rows. Right-click a row to pin / hide / move / reveal.
+- **⇧-click** (menu or panel) or **⇧⏎** moves the entry into the cold folder (`~/skillz`, configurable in Settings). A skill moves as its whole directory to `~/skillz/<name>/`; a command file moves to `~/skillz/commands/<same relative path>` (so `~/.claude/commands/cl/implement_plan.md` becomes `~/skillz/commands/cl/implement_plan.md` and keeps the name `cl:implement_plan`). Never overwrites; refuses symlinked, manual, or already-cold entries and logs why. Pins and usage follow the entry. The panel stays open with the moved row selected at its new path; `esc` dismisses.
 - Menu → **Settings…** for roots, manual files, excludes, hotkey, launch at login. **Rescan** after changing files on disk.
 - Menu → **Copy Diagnostics** when something is wrong; paste it to a coding agent.
 
 Default roots: `~/skillz` (your cold folder), `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`. Move skills out of the hot folders into `~/skillz` and they stop loading automatically but stay one click away.
 
-Slash-command files are included too. Each root has a kind: a **skills** root yields one entry per `SKILL.md` (named by its directory), a **commands** root yields one entry per `*.md` at any depth (named `sub:dir:stem`, so `~/.claude/commands/cl/implement_plan.md` is `cl:implement_plan`). Default commands roots: `~/.claude/commands`, `~/.codex/prompts`. The kind is per root, so a skill's own `README.md` or `references/*.md` is never mistaken for an entry.
+Slash-command files are included too. Each root has a kind: a **skills** root yields one entry per `SKILL.md` (named by its directory), a **commands** root yields one entry per `*.md` at any depth (named `sub:dir:stem`, so `~/.claude/commands/cl/implement_plan.md` is `cl:implement_plan`). Default commands roots: `~/.claude/commands`, `~/.codex/prompts`, `~/skillz/commands` (added automatically on first move if your config predates it). The kind is per root, so a skill's own `README.md` or `references/*.md` is never mistaken for an entry.
 
 ## Skill mode CLI reference
 
@@ -93,9 +94,11 @@ skillzbar scan --json        # entries, merges, skips, timings
 skillzbar status --json      # config, last scan, stale pins, recent errors
 skillzbar ctl menu           # what the running app's quick menu will show, and why
 skillzbar ctl copy diary --contents
+skillzbar move diary        # same as ⇧⏎; prints from → to
+skillzbar ctl move diary    # via the running app
 skillzbar ctl ui              # status item on screen? panel visible? menu open?
 skillzbar ctl show|hide|open-menu|close-menu   # drive the UI for verification
-skillzbar ctl key "dia @down @return"           # synthesize keys into the panel, then pbpaste
+skillzbar ctl key "dia @down @return"           # synthesize keys into the panel, then pbpaste (@opt-return @shift-return @esc)
 ```
 
 ## Build
@@ -108,7 +111,7 @@ make run        # build release, assemble build/SkillzBar.app, launch
 make install    # ~/Applications/SkillzBar.app + ~/.local/bin/skillzbar
 ```
 
-Files: config `~/Library/Application Support/SkillzBar/config.json`, log `~/Library/Logs/SkillzBar/skillzbar.jsonl`.
+Files: config `~/Library/Application Support/SkillzBar/config.json`, log `~/Library/Logs/SkillzBar/skillzbar.jsonl`. Set `SKILLZBAR_HOME=/some/scratch` to run the CLI or a second app instance against an isolated tree (config, log, socket, and `~` expansion all follow it); use this before testing `move`.
 
 ## License
 

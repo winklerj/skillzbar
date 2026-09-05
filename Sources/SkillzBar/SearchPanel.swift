@@ -3,23 +3,31 @@ import SwiftUI
 import SkillzBarCore
 
 final class PanelModel: ObservableObject {
-    @Published var query = ""
+    @Published var query = "" { didSet { recompute() } }
     @Published var selected = 0
     /// Bumped whenever the visible result set must start from the top (new query, panel shown).
     /// SwiftUI's List preserves scroll offset anchored to surviving row identities across data
     /// changes, so a new result set can otherwise appear pre-scrolled.
     @Published var scrollGeneration = 0
-    @Published var showHidden = false
-    @Published var entries: [SkillEntry] = []
-    @Published var config = Config.defaults
-    @Published var usage = Usage()
+    @Published var showHidden = false { didSet { recompute() } }
+    @Published var entries: [SkillEntry] = [] { didSet { recompute() } }
+    @Published var config = Config.defaults { didSet { recompute() } }
+    @Published var usage = Usage() { didSet { recompute() } }
 
-    var rows: [MenuRow] {
+    /// Ranked once per input change. A computed property here was re-ranking the whole set on every
+    /// access, and the row builder accessed it once per row, so each keystroke cost O(rows²) fuzzy runs.
+    @Published private(set) var rows: [MenuRow] = []
+    /// Index of each row by id, for O(1) "is this the selected row" checks while rendering.
+    private(set) var rowIndex: [SkillID: Int] = [:]
+
+    private func recompute() {
         let base = MenuModel.ordered(entries, config: config, usage: usage)
         let pool = showHidden ? base + entries.filter { config.visibility(of: $0.id) == .hidden }.map { MenuRow(entry: $0, reason: .alphabetical, shortcut: nil) } : base
-        if query.isEmpty { return pool.enumerated().map { i, r in MenuRow(entry: r.entry, reason: r.reason, shortcut: i < 9 ? i + 1 : nil) } }
-        let ranked = Fuzzy.rank(query, entries: pool.map(\.entry))
-        return ranked.enumerated().map { i, r in MenuRow(entry: r.entry, reason: .alphabetical, shortcut: i < 9 ? i + 1 : nil) }
+        let rs: [MenuRow]
+        if query.isEmpty { rs = pool.enumerated().map { i, r in MenuRow(entry: r.entry, reason: r.reason, shortcut: i < 9 ? i + 1 : nil) } }
+        else { rs = Fuzzy.rank(query, entries: pool.map(\.entry)).enumerated().map { i, r in MenuRow(entry: r.entry, reason: .alphabetical, shortcut: i < 9 ? i + 1 : nil) } }
+        rows = rs
+        rowIndex = Dictionary(uniqueKeysWithValues: rs.enumerated().map { ($1.entry.id, $0) })
     }
     /// Grouped by source root when enabled; keeps ordering inside groups.
     var groups: [(label: String, rows: [MenuRow])] {
@@ -61,6 +69,7 @@ final class SearchPanelController {
     /// Returns true if consumed. Digits act as shortcuts only while the query is empty.
     func handleKey(_ e: NSEvent) -> Bool {
         let option = e.modifierFlags.contains(.option)
+        let shift = e.modifierFlags.contains(.shift)
         let rows = model.rows
         switch e.keyCode {
         case 125: model.selected = min(model.selected + 1, max(0, rows.count - 1)); return true   // ↓
@@ -68,7 +77,8 @@ final class SearchPanelController {
         case 53: hide(); return true                                                                // esc
         case 36, 76:                                                                                // return / enter
             guard model.selected < rows.count else { return true }
-            copy(rows[model.selected], kind: option ? .contents : .path); return true
+            if shift { move(rows[model.selected]) } else { copy(rows[model.selected], kind: option ? .contents : .path) }
+            return true
         default:
             if model.query.isEmpty, let ch = e.charactersIgnoringModifiers, let d = Int(ch), (1...9).contains(d) {
                 if d <= rows.count { copy(rows[d - 1], kind: option ? .contents : .path) }
@@ -78,7 +88,7 @@ final class SearchPanelController {
         }
     }
 
-    /// For `ctl key`: "@down" "@up" "@return" "@opt-return" "@esc" or literal characters to type.
+    /// For `ctl key`: "@down" "@up" "@return" "@opt-return" "@shift-return" "@esc" or literal characters to type.
     func synthesize(_ token: String) {
         func send(_ code: UInt16, _ chars: String, mods: NSEvent.ModifierFlags = []) {
             guard let ev = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
@@ -92,6 +102,7 @@ final class SearchPanelController {
         case "@esc": send(53, "\u{1b}")
         case "@return": send(36, "\r")
         case "@opt-return": send(36, "\r", mods: .option)
+        case "@shift-return": send(36, "\r", mods: .shift)
         default: for ch in token { send(0, String(ch)) }
         }
     }
@@ -119,6 +130,13 @@ final class SearchPanelController {
         app.copy(row.entry.id, kind: kind)
         hide()
     }
+    /// ⇧-select: move into the cold root. The panel stays open either way: on success the rows refresh so the
+    /// moved entry shows its new path and stays selected; a refusal beeps and leaves the row untouched.
+    func move(_ row: MenuRow) {
+        guard let r = app.move(row.entry.id) else { NSSound.beep(); return }
+        refresh()
+        if let i = model.rows.firstIndex(where: { $0.entry.id == r.id }) { model.selected = i }
+    }
     func toggle(_ row: MenuRow, _ v: Visibility) {
         app.store.update { c in c.setVisibility(c.visibility(of: row.entry.id) == v ? nil : v, for: row.entry.id) }
         refresh()
@@ -136,7 +154,7 @@ struct SearchView: View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search skills — ⏎ copy path · ⌥⏎ copy contents · 1–9 quick copy", text: $model.query)
+                TextField("Search — ⏎ path · ⌥⏎ contents · ⇧⏎ move to \(model.config.coldRoot) · 1–9 copy", text: $model.query)
                     .textFieldStyle(.plain).font(.title3).focused($focused)
                     .onChange(of: model.query) { _, _ in model.selected = 0; model.scrollGeneration += 1 }
                 Toggle("hidden", isOn: $model.showHidden).toggleStyle(.checkbox).font(.caption).foregroundStyle(.secondary)
@@ -149,7 +167,7 @@ struct SearchView: View {
                     ForEach(Array(model.groups.enumerated()), id: \.offset) { _, g in
                         if !g.label.isEmpty { Text(g.label).font(.caption).foregroundStyle(.secondary).padding(.top, 4) }
                         ForEach(g.rows, id: \.entry.id) { row in
-                            rowView(row, index: model.rows.firstIndex { $0.entry.id == row.entry.id } ?? 0).id(row.entry.id)
+                            rowView(row, index: model.rowIndex[row.entry.id] ?? 0).id(row.entry.id)
                         }
                     }
                 }
@@ -194,10 +212,14 @@ struct SearchView: View {
         .padding(.vertical, 2).padding(.horizontal, 4)
         .background(index == model.selected ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 5))
         .contentShape(Rectangle())
-        .onTapGesture { controller.copy(row, kind: NSEvent.modifierFlags.contains(.option) ? .contents : .path) }
+        .onTapGesture {
+            if NSEvent.modifierFlags.contains(.shift) { controller.move(row) } else { controller.copy(row, kind: NSEvent.modifierFlags.contains(.option) ? .contents : .path) }
+        }
         .contextMenu {
             Button("Copy Path") { controller.copy(row, kind: .path) }
             Button("Copy Contents") { controller.copy(row, kind: .contents) }
+            Divider()
+            Button("Move to \(model.config.coldRoot)") { controller.move(row) }
             Divider()
             Button(vis == .pinned ? "Unpin" : "Pin") { controller.toggle(row, .pinned) }
             Button(vis == .hidden ? "Unhide" : "Hide") { controller.toggle(row, .hidden) }
