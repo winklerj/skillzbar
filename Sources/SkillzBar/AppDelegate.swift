@@ -126,9 +126,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if settings == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 520), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
             w.title = "SkillzBar Settings"; w.isReleasedWhenClosed = false; w.center()
-            w.contentView = NSHostingView(rootView: SettingsView(app: self))
             settings = w
         }
+        // Reload config.json and rebuild on every show: a move may have added a root, or a CLI/agent may have edited
+        // the file; auto-saving edits from a stale view would clobber that. Sync rescan is a few ms.
+        store.rescan()
+        settings?.contentView = NSHostingView(rootView: SettingsView(app: self))
         NSApp.activate(ignoringOtherApps: true)
         settings?.makeKeyAndOrderFront(nil)
     }

@@ -76,12 +76,12 @@ You, if you have more skills than you use daily, you work in more than one agent
 - **Click** the menu bar icon → skills list. **Click** a skill: its `SKILL.md` path is on the clipboard. **⌥-click**: path line + blank line + full contents. `⌘1`–`⌘9` pick the top rows while the menu is open.
 - **⌥⌘P** (configurable) → search panel. Type to filter, `↑↓⏎`, `⌥⏎` for contents, `⇧⏎` to move to the cold folder, `1`–`9` for the top rows. Right-click a row to pin / hide / move / reveal.
 - **⇧-click** (menu or panel) or **⇧⏎** moves the entry into the cold folder (`~/skillz`, configurable in Settings). A skill moves as its whole directory to `~/skillz/<name>/`; a command file moves to `~/skillz/commands/<same relative path>` (so `~/.claude/commands/cl/implement_plan.md` becomes `~/skillz/commands/cl/implement_plan.md` and keeps the name `cl:implement_plan`). Never overwrites; refuses symlinked, manual, or already-cold entries and logs why. Pins and usage follow the entry. The panel stays open with the moved row selected at its new path; `esc` dismisses.
-- Menu → **Settings…** for roots, manual files, excludes, hotkey, launch at login. **Rescan** after changing files on disk.
+- Menu → **Settings…** for roots, manual files, excludes, hotkey, launch at login. Every change saves and rescans immediately; there is no Save button. **Rescan** after changing files on disk.
 - Menu → **Copy Diagnostics** when something is wrong; paste it to a coding agent.
 
 Default roots: `~/skillz` (your cold folder), `~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`. Move skills out of the hot folders into `~/skillz` and they stop loading automatically but stay one click away.
 
-Slash-command files are included too. Each root has a kind: a **skills** root yields one entry per `SKILL.md` (named by its directory), a **commands** root yields one entry per `*.md` at any depth (named `sub:dir:stem`, so `~/.claude/commands/cl/implement_plan.md` is `cl:implement_plan`). Default commands roots: `~/.claude/commands`, `~/.codex/prompts`, `~/skillz/commands` (added automatically on first move if your config predates it). The kind is per root, so a skill's own `README.md` or `references/*.md` is never mistaken for an entry.
+Slash-command files are included too. Each root has a kind: a **skills** root yields one entry per `SKILL.md` (named by its directory), a **commands** root yields one entry per `*.md` at any depth (named `sub:dir:stem`, so `~/.claude/commands/cl/implement_plan.md` is `cl:implement_plan`). Default commands roots: `~/.claude/commands`, `~/.codex/prompts`, `~/skillz/commands` (added automatically on first move if your config predates it; if you copy command files into `~/skillz/commands/` by hand before ever moving one, add that folder once via Settings → **Add Commands Folder…**). The kind is per root, so a skill's own `README.md` or `references/*.md` is never mistaken for an entry.
 
 ## Skill mode CLI reference
 

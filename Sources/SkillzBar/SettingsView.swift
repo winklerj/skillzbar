@@ -67,12 +67,16 @@ struct SettingsView: View {
             }
             HStack {
                 Spacer()
-                if saved { Text("Saved & rescanned").foregroundStyle(.secondary) }
-                Button("Save") { save() }.keyboardShortcut(.defaultAction)
+                Text(saved ? "Changes apply immediately; saved & rescanned" : "Changes apply immediately").foregroundStyle(.secondary)
+                Button("Rescan") { save() }.keyboardShortcut(.defaultAction)
             }
         }
         .formStyle(.grouped)
         .frame(minWidth: 520, minHeight: 480)
+        // Every edit persists and rescans at once: a root added with no explicit Save used to be silently lost.
+        .onChange(of: cfg) { _, _ in save() }
+        .onChange(of: excludeNamesText) { _, _ in save() }
+        .onChange(of: excludePrefixesText) { _, _ in save() }
     }
 
     func addRoot(kind: ContentKind) {
@@ -97,12 +101,17 @@ struct SettingsView: View {
     }
 
     func save() {
-        cfg.excludeDirNames = excludeNamesText.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        cfg.excludePathPrefixes = excludePrefixesText.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        let snapshot = cfg
+        let names = excludeNamesText.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let prefixes = excludePrefixesText.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if cfg.excludeDirNames != names { cfg.excludeDirNames = names }          // guarded: assigning re-fires onChange(of: cfg)
+        if cfg.excludePathPrefixes != prefixes { cfg.excludePathPrefixes = prefixes }
+        // Mid-edit the key field is "" or 2 chars; keep the last valid hotkey on disk (and registered) until it resolves.
+        guard cfg.hotkey.key.count == 1 else { return }
+        let before = app.store.config, snapshot = cfg
         app.store.update { $0 = snapshot }
-        app.registerHotkey()
-        app.syncLaunchAtLogin()
+        // Side effects only for the field that changed, so typing an exclude prefix never re-registers the hotkey.
+        if before.hotkey != snapshot.hotkey { app.registerHotkey() }
+        if before.launchAtLogin != snapshot.launchAtLogin { app.syncLaunchAtLogin() }
         app.rescan()
         saved = true
     }
